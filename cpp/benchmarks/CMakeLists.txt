@@ -1,0 +1,4 @@
+find_package(benchmark REQUIRED)
+
+add_executable(bench_spsc_ring_buffer bench_spsc_ring_buffer.cpp)
+target_link_libraries(bench_spsc_ring_buffer PRIVATE lob_core benchmark::benchmark)

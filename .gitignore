@@ -1,0 +1,29 @@
+# C++ build directories (one per CMakePresets.json entry)
+build/
+build-debug/
+build-asan/
+build-tsan/
+CMakeUserPresets.json
+
+# Compiled artifacts
+*.o
+*.so
+*.a
+compile_commands.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Data (raw market data does not belong in git - see docs/DATA.md)
+data/raw/
+*.parquet
+*.csv.gz
+
+# Editor/OS
+.vscode/
+.idea/
+.DS_Store
