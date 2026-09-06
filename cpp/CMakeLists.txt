@@ -14,13 +14,24 @@ endif()
 # Run the test suite under these regularly, not just at the end:
 #   cmake -S cpp -B build-asan -DLOB_SANITIZE=address,undefined
 #   cmake -S cpp -B build-tsan -DLOB_SANITIZE=thread
+# GCC/Clang syntax - works identically on Mac (Clang) and WSL/CI (GCC).
+# MSVC's sanitizer support (ASan only, no UBSan/TSan, different flag syntax)
+# isn't wired up here - not needed now that Windows uses WSL.
 option(LOB_SANITIZE "Comma-separated sanitizers, e.g. address,undefined or thread" "")
 if(LOB_SANITIZE)
-  add_compile_options(-fsanitize=${LOB_SANITIZE} -fno-omit-frame-pointer -g)
-  add_link_options(-fsanitize=${LOB_SANITIZE})
+  if(MSVC)
+    message(WARNING "LOB_SANITIZE is not supported in this build under MSVC; ignoring. Use the asan/tsan presets via WSL or CI instead.")
+  else()
+    add_compile_options(-fsanitize=${LOB_SANITIZE} -fno-omit-frame-pointer -g)
+    add_link_options(-fsanitize=${LOB_SANITIZE})
+  endif()
 endif()
 
-add_compile_options(-Wall -Wextra -Wpedantic)
+if(MSVC)
+  add_compile_options(/W4)
+else()
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
 
 find_package(Threads REQUIRED)
 

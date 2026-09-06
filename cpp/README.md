@@ -39,3 +39,18 @@ All via `apt` (see `docker/Dockerfile` for the exact list) — `cmake`,
 via `pip install pybind11`. No vcpkg/Conan: the Docker image is the
 reproducibility layer, so a second package manager on top would be
 redundant.
+
+---
+
+### `cpp/include/lob/spsc_ring_buffer.hpp` -> The actual engine code
+- Lock-free Single Producer, Single Consumer (SPSC) queue.
+    - Not Multi Producer, Multi Consumer because a real feed-handler is naturally SPSC per venue link (prevents consumers observed an updated `tail_` before observing the data written to that slot)—one socket/kernel-bypass thread produces, one strategy thread consumes.
+
+### `cpp/tests/test_spsc_ring_buffer.cpp` -> Catch2 tests
+
+### `cpp/benchmarks/bench_spsc_ring_buffer.cpp` -> Google Benchmark
+
+### `cpp/bindings/py_lob.cpp` => `pybind11` bridge
+- Every `.def(...)` exposes one C++ method to build
+    - After building, import lob_engine gives a `RingBufferU64` class that's a thin wrapper around the real C++ object — no copying into Python, calls go straight into C++ memory
+    - **Rule as this grows**: keep this file a thin translation layer; real logic goes in `cpp/src/`.
