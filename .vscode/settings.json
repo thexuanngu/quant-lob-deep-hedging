@@ -1,0 +1,8 @@
+{
+  "cmake.sourceDirectory": "${workspaceFolder}/cpp",
+  "cmake.useCMakePresets": "always",
+  "python.analysis.extraPaths": ["${workspaceFolder}/build"],
+  "terminal.integrated.env.linux": { "PYTHONPATH": "${workspaceFolder}/build" },
+  "terminal.integrated.env.osx": { "PYTHONPATH": "${workspaceFolder}/build" },
+  "editor.formatOnSave": true
+}

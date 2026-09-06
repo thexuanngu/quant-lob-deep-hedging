@@ -3,6 +3,8 @@ build/
 build-debug/
 build-asan/
 build-tsan/
+build-windows-debug/
+build-windows-release/
 CMakeUserPresets.json
 
 # Compiled artifacts
@@ -24,6 +26,7 @@ data/raw/
 *.csv.gz
 
 # Editor/OS
-.vscode/
+.vscode/*
+!.vscode/settings.json
 .idea/
 .DS_Store
