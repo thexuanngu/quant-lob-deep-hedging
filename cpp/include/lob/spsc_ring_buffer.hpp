@@ -54,7 +54,9 @@ class SpscRingBuffer {
   bool try_push(const T& value) noexcept(
       std::is_nothrow_copy_constructible_v<T>) {
     const std::size_t tail = tail_.load(std::memory_order_relaxed);
-    const std::size_t next = (tail + 1) & kMask;
+    const std::size_t next =
+        (tail + 1) & kMask;  // Equivalent to a division instruction (hence why
+                             // Capacity is power of 2)
 
     // Acquire here pairs with the release the consumer does after it frees
     // a slot, so we see the up-to-date head_ before deciding we're full.
