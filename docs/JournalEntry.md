@@ -16,3 +16,20 @@
         - `alginas(64)` reduces the 10-50x throughput killer on hot lock-free structures by padding each one onto its own cache line, so the two threads' `head_` and `tail_` cache traffic never collides.
         (basically stops unnecessary interference between the two threads]
         )
+
+## 09/08/2026 (MM/DD/YYYY)
+- Another day of deciphering the scaffold:
+    - `tail_` -> index of the next empty slot the producer will write to
+    - `head_` -> index of the next filled slot the consumer will read from
+        - `head_ == tail_` -> empty buffer
+        -  *Full buffer* -> advancing `tail_` by one would make it equal `head_`
+            - A buffer of `Capacity` slots can only hold `Capacity - 1` items (sacrificing a slot to distinguish between full and empty with just two indices)
+    - `try_push`: Reads its own index (`tail_`) with `relaxed` ordering (safe because ONLY the PRODUCER ever writes to `tail_`)
+        - Then reads the other thread's index (`head_`) with `acquire`, which DOES REQUIRE SYNCHRONIZATION (in contract with `try_pop`'s `release` store on `head_`)
+            - Producer guaranteed to see consumer's latest freed slot (not stale cached value), never overwriteing data the consumer is reading.
+            - If space, value written into slot THEN publish new `tail_` with `release` (data 1st, index 2nd) prevents consumer seeing 'new item ready' before item itself is actually in memory.
+            - Overloads exist enables a temporary/`std::move` value gets into slot
+    - `try_pop`: 
+    - Why atomics + acquire/release instead of just a `std::mutex`: 
+    - `size_approx`: 
+    - The deleted copy constructor: 
