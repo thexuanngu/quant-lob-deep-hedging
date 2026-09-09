@@ -56,4 +56,11 @@
         - `double`/`float` avoided because of float imprecision (and non-matching levels, while they should be) => solution is to use `int` (i.e., if BTC's tick size is $5, then $60,005=`12001`)
             - Allows deterministic equality checks AND mapping prices directly to flat, continuous array indices for cache prefetching
     3. Constant-Time Cancellations: intrusive doubly linked list for orders within a level, paired / hashMap linking orderIDs to node pointers for instantaneous cancellations
-        - 
+        - Intrusive: The data holds its own `prev` and `next` ptrs, allowing it to 'intrude' in the list (provides constant O(1) access, with no extra heap allocation (to wrap data in node))
+- One more thing: I want to add a 'logger' type system using the 'currying' functions methods I learn in CodeSignal.
+
+## 10/09/2026
+- Finally digging into the meat and bones of this order book. I know that I should pre-allocate a pool of Order structs equal to the ring buffer's capacity (Object Pool/ Slab Allocator) to 'starve the heap allocator on a hot path'
+- 'hot path' (fast/critical path) code executed most frequently & performance most paramount
+    - No heap allocations, No system calls, No locks, cache locality is king
+    
