@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <order_book.hpp>
 #include <spsc_ring_buffer.hpp>
 
@@ -45,38 +46,40 @@ void OrderBook::cancel_order(uint64_t order_id) {
    */
 void OrderBook::add_order(Order* order) {
   // Determine whether we've received a BID (buy) or ASK (sell) order
-  if (order->side == Side::Bid) {  // User wants to buy
-    // Do asks exist?
-    if (!asks_.empty()) {
-      // Is the bid greater or equal to the best_ask?
-      if (order->price >= best_ask_) {
-        // Consume liquidity until:
-        while (
-            order->qty > 0     // (1) the order->qty has been consumed
-            && !asks_.empty()  // (2) there are no more asks
-            &&
-            best_ask_ <=
-                order->price) {  // (3) the best ask price is lower than the bid
-          // Check if the order quantity would clear the price level
-          auto& best_ask = asks_[best_ask_];
-          if (best_ask.total_qty <= order->qty) {
-            order->qty -= best_ask.total_qty;
-            delete &best_ask;  // Delete everything and reset to 0?
-            best_ask_ += 1;
-          } else {  // Iterate through the orders
-            best_ask.total_qty -= order->qty;
-            auto& topOrder = best_ask.head;
-            while (order->qty > 0) {
-              order->qty -= topOrder->qty;
-              auto& nextOrder = topOrder->next;
-              cancel_order(topOrder->order_id);
-              topOrder = nextOrder;
-            }
-            best_ask.head = topOrder->prev;
+  if (order->side == Side::Bid) {          // User wants to buy (BID)
+    if (order->price >= best_ask_) {       // Order WILL consume liquidity
+      while (order->qty > 0                // The incoming order's quantity > 0
+             && best_ask_ <= order->price  // The incoming order's price is
+                                           // greater than the best ask (sell)
+             && best_ask_ < asks_.size()) {
+        auto& level = asks_[best_ask_];
+
+        if (level.total_qty ==
+            0) {        // This will happen POST price level consumption
+          best_ask_++;  // Fast forward past empty levels
+          continue;
+        }
+
+        auto& topOrder = level.head;
+        while (topOrder && order->qty) {
+          // Safely caclulate the execution quantity to prevent underflow
+          uint64_t execQuantity = std::min(order->qty, topOrder->qty);
+
+          order->qty -= execQuantity;
+          topOrder->qty -= execQuantity;
+          level.total_qty -= execQuantity;
+
+          if (topOrder->qty == 0) {  // i.e., it was the minimum
+            Order* nextOrder = topOrder->next;
+            cancel_order(topOrder->order_id);
+            topOrder = nextOrder;
+          } else {  // The order or price level qty is now 0
+            break;
           }
         }
       }
     }
+    if (order->qty == 0) return;
     // Add to the bids if the above conditions are not met
     PriceLevel& level = bids_[order->price];
 
@@ -102,38 +105,41 @@ void OrderBook::add_order(Order* order) {
     if (order->price > best_bid_) {
       best_bid_ = order->price;
     }
+  } else {                            // Repeat the work but for incoming ASKS
+    if (order->price <= best_bid_) {  // Order WILL consume liquidity
+      while (order->qty > 0           // The incoming order's quantity > 0
+             && best_bid_ >= order->price  // The incoming order's price is
+                                           // less than the best bid (buy)
+             && best_bid_ < bids_.size()) {
+        auto& level = bids_[best_bid_];
 
-  } else {  // Repeat the above for asks (sell orders)
-    // Do bids exist?
-    if (!bids_.empty()) {
-      // Is the ask less than or equal to the best_bid?
-      if (order->price <= best_bid_) {
-        // Consume liquidity until:
-        while (order->qty > 0     // (1) the order->qty has been consumed
-               && !bids_.empty()  // (2) there are no more asks
-               && best_bid_ >= order->price) {  // (3) the best bid price is
-                                                // higher than the ask
-          // Check if the order quantity would clear the price level
-          auto& best_bid = bids_[best_bid_];
-          if (best_bid.total_qty <= order->qty) {
-            order->qty -= best_bid.total_qty;
-            delete &best_bid;  // Delete everything and reset to 0?
-            best_bid_ -= 1;
-          } else {  // Iterate through the orders
-            best_bid.total_qty -= order->qty;
-            auto& topOrder = best_bid.head;
-            while (order->qty > 0) {
-              order->qty -= topOrder->qty;
-              auto& nextOrder = topOrder->next;
-              cancel_order(topOrder->order_id);
-              topOrder = nextOrder;
-            }
-            best_bid.head = topOrder->prev;
+        if (level.total_qty ==
+            0) {        // This will happen POST price level consumption
+          best_bid_--;  // Fast forward past empty levels
+          continue;
+        }
+
+        auto& topOrder = level.head;
+        while (topOrder && order->qty) {
+          // Safely caclulate the execution quantity to prevent underflow
+          uint64_t execQuantity = std::min(order->qty, topOrder->qty);
+
+          order->qty -= execQuantity;
+          topOrder->qty -= execQuantity;
+          level.total_qty -= execQuantity;
+
+          if (topOrder->qty == 0) {  // i.e., it was the minimum
+            Order* nextOrder = topOrder->next;
+            cancel_order(topOrder->order_id);
+            topOrder = nextOrder;
+          } else {  // The order or price level qty is now 0
+            break;
           }
         }
       }
     }
-    // Add to the asks if the above conditions are not met
+    if (order->qty == 0) return;
+    // Add to the bids if the above conditions are not met
     PriceLevel& level = asks_[order->price];
 
     // 1. Wire the intrusive pointers
@@ -156,7 +162,7 @@ void OrderBook::add_order(Order* order) {
 
     // 4. Update the best bid/ask tracker if necessary
     if (order->price < best_ask_) {
-      best_bid_ = order->price;
+      best_ask_ = order->price;
     }
   }
 }
