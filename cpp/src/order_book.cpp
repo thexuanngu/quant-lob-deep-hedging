@@ -6,19 +6,35 @@ namespace lob {
 void OrderBook::cancel_order(uint64_t order_id) {
   // Check the order exists (might be redundant if I'm really careful with how
   // order_map_ is maintained)
-  if (order_map_.find(order_id) == order_map_.end()) return;
+  auto it = order_map_.find(order_id);
+  if (it == order_map_.end()) return;
 
-  auto& order = order_map_[order_id];
-  auto& prev_order = order->prev;
-  auto& next_order = order->next;
+  Order* order = it->second;
 
-  // Connect the prior prev and next orders
-  prev_order->next = next_order;
-  next_order->prev = prev_order;
+  // 1. Locate the current price level
+  PriceLevel& level =
+      (order->side == Side::Ask) ? asks_[order->price] : bids_[order->price];
 
-  // Delete / remove the previous order
-  order_map_.erase(order_id);
-  delete order;
+  // 2. Safely unlink the previous pointer
+  if (order->prev != nullptr) {
+    order->prev->next = order->next;
+  } else {
+    level.head = order->next;  // Delete the head
+  }
+
+  // 3. Safely unlink the next pointer
+  if (order->next != nullptr) {
+    order->next->prev = order->prev;
+  } else {
+    level.tail = order->prev;  // Delete the tail (if we were at tail)
+  }
+
+  // 4. Update the state variables
+  level.total_qty -= order->qty;
+  order_map_.erase(it);
+
+  // Note: Return `order` to a pre-allocated object pool here. DO NOT use
+  // `delete`.
 }
 
 /* 2 Main scenarios to handle:
