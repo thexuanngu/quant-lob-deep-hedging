@@ -60,8 +60,8 @@ void OrderBook::add_order(Order* order) {
           continue;
         }
 
-        auto& topOrder = level.head;
-        while (topOrder && order->qty) {
+        auto topOrder = level.head;
+        while (topOrder && order->qty > 0) {
           // Safely caclulate the execution quantity to prevent underflow
           uint64_t execQuantity = std::min(order->qty, topOrder->qty);
 
@@ -110,7 +110,7 @@ void OrderBook::add_order(Order* order) {
       while (order->qty > 0           // The incoming order's quantity > 0
              && best_bid_ >= order->price  // The incoming order's price is
                                            // less than the best bid (buy)
-             && best_bid_ < bids_.size()) {
+             && best_bid_ >= 0) {
         auto& level = bids_[best_bid_];
 
         if (level.total_qty ==
@@ -119,8 +119,8 @@ void OrderBook::add_order(Order* order) {
           continue;
         }
 
-        auto& topOrder = level.head;
-        while (topOrder && order->qty) {
+        auto topOrder = level.head;
+        while (topOrder && order->qty > 0) {
           // Safely caclulate the execution quantity to prevent underflow
           uint64_t execQuantity = std::min(order->qty, topOrder->qty);
 
