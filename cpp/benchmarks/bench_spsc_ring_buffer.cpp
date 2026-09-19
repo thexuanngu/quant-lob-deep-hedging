@@ -23,4 +23,4 @@ static void BM_PushPop(benchmark::State& state) {
 }
 BENCHMARK(BM_PushPop);
 
-BENCHMARK_MAIN();
+// BENCHMARK_MAIN();

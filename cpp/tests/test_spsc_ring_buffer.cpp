@@ -1,13 +1,12 @@
-#include <catch2/catch_test_macros.hpp>
-
 #include <atomic>
+#include <catch2/catch_test_macros.hpp>
 #include <numeric>
 #include <thread>
 #include <vector>
 
 #include "lob/spsc_ring_buffer.hpp"
 
-TEST_CASE("push/pop round-trip preserves order", "[ring_buffer]") {
+TEST_CASE("SPSC: push/pop round-trip preserves order", "[ring_buffer]") {
   lob::SpscRingBuffer<int, 8> rb;
 
   REQUIRE(rb.try_push(1));
@@ -26,12 +25,12 @@ TEST_CASE("push/pop round-trip preserves order", "[ring_buffer]") {
   CHECK(*c == 3);
 }
 
-TEST_CASE("pop on empty buffer returns nullopt", "[ring_buffer]") {
+TEST_CASE("SPSC: pop on empty buffer returns nullopt", "[ring_buffer]") {
   lob::SpscRingBuffer<int, 4> rb;
   CHECK_FALSE(rb.try_pop().has_value());
 }
 
-TEST_CASE("push fails once buffer is full", "[ring_buffer]") {
+TEST_CASE("SPSC: push fails once buffer is full", "[ring_buffer]") {
   // Capacity 4 means 3 usable slots (one slot always kept empty to
   // distinguish full from empty using only head/tail).
   lob::SpscRingBuffer<int, 4> rb;
@@ -44,7 +43,8 @@ TEST_CASE("push fails once buffer is full", "[ring_buffer]") {
   CHECK(rb.try_push(4));  // now there's room again
 }
 
-TEST_CASE("wraparound preserves FIFO order over many cycles", "[ring_buffer]") {
+TEST_CASE("SPSC: wraparound preserves FIFO order over many cycles",
+          "[ring_buffer]") {
   lob::SpscRingBuffer<int, 4> rb;
   for (int cycle = 0; cycle < 100; ++cycle) {
     REQUIRE(rb.try_push(cycle));
@@ -58,8 +58,10 @@ TEST_CASE("wraparound preserves FIFO order over many cycles", "[ring_buffer]") {
   }
 }
 
-TEST_CASE("concurrent single-producer/single-consumer preserves all items and order",
-          "[ring_buffer][concurrency]") {
+TEST_CASE(
+    "SPSC: concurrent single-producer/single-consumer preserves all items and "
+    "order",
+    "[ring_buffer][concurrency]") {
   constexpr std::size_t kItems = 2'000'000;
   lob::SpscRingBuffer<std::uint64_t, 1024> rb;
 

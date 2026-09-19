@@ -35,12 +35,15 @@ endif()
 
 find_package(Threads REQUIRED)
 
-# --- Core header-only library target ------------------------------------
-add_library(lob_core INTERFACE)
-target_include_directories(lob_core INTERFACE
+# --- Core library target (now compiles real .cpp files, not just headers) ---
+add_library(lob_core STATIC
+  src/order_book.cpp
+  src/order_pool.cpp
+)
+target_include_directories(lob_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
-target_link_libraries(lob_core INTERFACE Threads::Threads)
+target_link_libraries(lob_core PUBLIC Threads::Threads)
 
 # --- pybind11 module ------------------------------------------------------
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
