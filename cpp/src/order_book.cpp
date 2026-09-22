@@ -97,9 +97,14 @@ void OrderBook::cancel_order(uint64_t order_id) {
 void OrderBook::add_order(Order* order) {
   // Check if the order is within the bounds of the LOB
   if (order->price < tick_price_offset_ ||
-      order->price > tick_price_offset_ * asks_.size()) {
+      order->price >=
+          tick_price_offset_ + static_cast<int64_t>(asks_.size())) {
+    // Silently reject orders outside the acceptable window - but the order
+    // still never rests, so it must go back to the pool or this leaks a
+    // slot every time an out-of-window order arrives.
+    order_pool_->deallocate(order);
     return;
-  }  // Silently reject orders outside the acceptable window
+  }
 
   // Generate the relevant index
   auto indexed_price = order->price - tick_price_offset_;
@@ -135,7 +140,12 @@ void OrderBook::add_order(Order* order) {
         }
       }
     }
-    if (order->qty == 0) return;
+    if (order->qty == 0) {
+      // Fully filled as the aggressive side - it never rests, so return
+      // it to the pool now rather than leaking this slot forever.
+      order_pool_->deallocate(order);
+      return;
+    }
     // Add to the bids if the above conditions are not met
     PriceLevel& level = bids_[indexed_price];
 
@@ -192,7 +202,12 @@ void OrderBook::add_order(Order* order) {
         }
       }
     }
-    if (order->qty == 0) return;
+    if (order->qty == 0) {
+      // Fully filled as the aggressive side - it never rests, so return
+      // it to the pool now rather than leaking this slot forever.
+      order_pool_->deallocate(order);
+      return;
+    }
     // Add to the asks if the above conditions are not met
     PriceLevel& level = asks_[indexed_price];
 
