@@ -49,14 +49,6 @@ class OrderPool {
   std::vector<Order*> free_list_;
 };
 
-struct OrderEvent {  // Interface between the buffer and the OrderPool
-  uint64_t order_id;
-  int64_t price;
-  uint64_t qty;
-  Side side;
-  // e.g., Action action; // Add, Cancel, Modify
-};
-
 class OrderBook {
  public:
   // OrderBook() = default;

@@ -63,4 +63,13 @@
 - Finally digging into the meat and bones of this order book. I know that I should pre-allocate a pool of Order structs equal to the ring buffer's capacity (Object Pool/ Slab Allocator) to 'starve the heap allocator on a hot path'
 - 'hot path' (fast/critical path) code executed most frequently & performance most paramount
     - No heap allocations, No system calls, No locks, cache locality is king
+
+## 22/09/2026
+- While on Holiday in China, I managed to complete Milestone 1: Create a functional LOB with orders being added, matched, modified, and cancelled. I definitely learnt some more things about being careful with the types used in the comparison, the intrusive doubly-linked lists, and the need to know essentially create a 'domain' of OrderEvent that acts as the translator between the engine and the actual LOB.
+
+- Goal is to test it with some synthetic data, but I need to create an engine class that will have a run method.
+
+According to Gemini, I need to implemenet the LOBEngineWrapper, and write a new Catch2 test (i.e., `test_engine_concurrency.cpp`) to spawn a producer thread, push 500k synthetic `OrderEvent` structs into the buffer, and asserts that the engine processes them all.
+
+Important to evaluate the translation logic: Event -> Pool -> Book -> Action Routing SINGLE THREADED FIRST (before adding in concurrency)
     
