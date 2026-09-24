@@ -251,12 +251,14 @@ void OrderBook::modify_order(uint64_t order_id, int64_t new_price,
 
   // Retrieve a fresh pointer, populate it, and add it.
   Order* new_order = order_pool_->allocate();
-  new_order->order_id = order_id;
-  new_order->price = new_price;
-  new_order->qty = new_qty;
-  new_order->side = side;
+  if (new_order) {
+    new_order->order_id = order_id;
+    new_order->price = new_price;
+    new_order->qty = new_qty;
+    new_order->side = side;
 
-  add_order(new_order);
+    add_order(new_order);
+  } 
 }
 
 }  // namespace lob
