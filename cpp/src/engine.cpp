@@ -6,8 +6,10 @@ namespace lob {
 void LOBEngine::runEngine() {
   while (running_.load(std::memory_order_acquire)) {
     auto event_opt = ring_buffer_.try_pop();
-    if (!event_opt)
-      std::this_thread::yield();  // Spin-lock: immediately retry -> Is this ok?
+    if (!event_opt) {
+      std::this_thread::yield();  // Comment this out to immediately retry (will use entire CPU)
+      continue;
+    }
 
     OrderEvent& ev = *event_opt;
 
