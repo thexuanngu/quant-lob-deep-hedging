@@ -73,3 +73,5 @@ According to Gemini, I need to implemenet the LOBEngineWrapper, and write a new 
 
 Important to evaluate the translation logic: Event -> Pool -> Book -> Action Routing SINGLE THREADED FIRST (before adding in concurrency)
     
+## 24/09/2026
+- I want to do the currying function thing and implement a logger. I realize that I can't REALLY be using strings, so instead it'll be numbers or ENUMs, and there'll be a separate 'outside' 'dictionary' to translate what the log messages are saying

@@ -40,6 +40,7 @@ add_library(lob_core STATIC
   src/order_book.cpp
   src/order_pool.cpp
   src/engine.cpp
+  src/lob_feed.cpp
 )
 target_include_directories(lob_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
