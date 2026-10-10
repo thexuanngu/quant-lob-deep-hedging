@@ -1,22 +1,31 @@
 #include "lob/order_book.hpp"
 
 #include <algorithm>
-
-// #include "lob/spsc_ring_buffer.hpp" TODO: Do I need this include statement here?
+#include <vector>
 
 namespace lob {
 
 // TESTING FUNCTIONS
 
-int64_t OrderBook::get_best_bid() {
-  return (best_bid_ + tick_price_offset_);  // TODO: Deal with the tick_size
-                                            // multiplication differently
-}
+int64_t OrderBook::get_best_bid() { return (best_bid_ + tick_price_offset_); }
 int64_t OrderBook::get_best_ask() { return (best_ask_ + tick_price_offset_); }
+std::size_t OrderBook::get_all_resting_orders() { return order_map_.size(); }
+
+bool OrderBook::has_bid(int64_t indexed_price) {
+  return bids_[indexed_price].total_qty != 0;
+}
+bool OrderBook::has_ask(int64_t indexed_price) {
+  return asks_[indexed_price].total_qty != 0;
+}
 
 uint64_t OrderBook::get_total_quantity_at_price(Side side, int64_t price) {
   return (side == Side::Bid) ? bids_[price - tick_price_offset_].total_qty
                              : asks_[price - tick_price_offset_].total_qty;
+}
+
+PriceLevel OrderBook::get_price_level(Side side, int64_t price) {
+  return (side == Side::Ask) ? asks_[price - tick_price_offset_]
+                             : bids_[price - tick_price_offset_];
 }
 
 std::vector<uint64_t> OrderBook::get_order_count_at_level(Side side,
@@ -33,23 +42,18 @@ std::vector<uint64_t> OrderBook::get_order_count_at_level(Side side,
   return res;
 }
 
-std::size_t OrderBook::get_all_resting_orders() { return order_map_.size(); }
-
-PriceLevel OrderBook::get_price_level(Side side, int64_t price) {
-  return (side == Side::Ask) ? asks_[price - tick_price_offset_]
-                             : bids_[price - tick_price_offset_];
-}
-
 // CORE FUNCTIONALITY
 
 OrderBook::OrderBook(int64_t num_price_levels, double tick_size,
-                     int64_t tick_price_offset, OrderPool* order_pool)
+                     int64_t tick_price_offset, OrderPool* order_pool,
+                     SpscRingBuffer<ExecutionEvent, 4096>& outbound_fills)
     : asks_(num_price_levels),
       bids_(num_price_levels),
       tick_size_(tick_size),
       tick_price_offset_(
           tick_price_offset),  // Be careful with setting this to 0
-      order_pool_(order_pool) {}
+      order_pool_(order_pool),
+      outbound_fills_(outbound_fills) {}
 
 void OrderBook::cancel_order(uint64_t order_id) {
   // Check the order exists (might be redundant with careful design
@@ -64,27 +68,39 @@ void OrderBook::cancel_order(uint64_t order_id) {
       (order->side == Side::Ask) ? asks_[indexed_price] : bids_[indexed_price];
 
   // 2. Safely unlink the previous pointer
-  if (order->prev != nullptr) {
+  if (order->prev != nullptr)
     order->prev->next = order->next;
-  } else {
+  else
     level.head = order->next;  // Delete the head
-  }
 
   // 3. Safely unlink the next pointer
-  if (order->next != nullptr) {
+  if (order->next != nullptr)
     order->next->prev = order->prev;
-  } else {
+  else
     level.tail = order->prev;  // Delete the tail (if we were at tail)
-  }
 
   // 4. Update the state variables
   level.total_qty -= order->qty;
+
   // 4b. If necessary, update the best_bid/ask
-  // TODO: Do I need a logic check for updating the best bid and ask here?
+  if (level.total_qty == 0) {
+    int64_t temp_idx = indexed_price;
+    if (order->side == Side::Bid && indexed_price == best_bid_) {
+      while (temp_idx > 0 && bids_[temp_idx].total_qty == 0)
+        temp_idx--;  // Keep reducing if the best_bid hasn't been found
+      best_bid_ = (has_bid(temp_idx)) ? temp_idx : -1;  // no bids in market (
+    } else if (order->side == Side::Ask &&
+               indexed_price == best_ask_) {  // Keep increasing if the best ask
+                                              // hasn't been found
+      while (temp_idx < static_cast<int64_t>(asks_.size()) &&
+             asks_[temp_idx].total_qty == 0)
+        temp_idx++;
+      best_ask_ = (has_ask(temp_idx)) ? temp_idx : INT64_MAX;
+    }
+  }
   order_map_.erase(it);
 
-  // Note: Return `order` to a pre-allocated object pool here. DO NOT use
-  // `delete`.
+  // Note: Return `order` to a pre-allocated object pool here -> do not 'delete
   order_pool_->deallocate(order);
 }
 
@@ -94,11 +110,11 @@ void OrderBook::cancel_order(uint64_t order_id) {
     a. Order consumes multiple levels of liquidity
     b. Order doesn't entirely consume the head liquidity
    */
+// TODO(Me): Add in a 'Fill' notification for when the model gets filled
 void OrderBook::add_order(Order* order) {
   // Check if the order is within the bounds of the LOB
   if (order->price < tick_price_offset_ ||
-      order->price >=
-          tick_price_offset_ + static_cast<int64_t>(asks_.size())) {
+      order->price >= tick_price_offset_ + static_cast<int64_t>(asks_.size())) {
     // Silently reject orders outside the acceptable window - but the order
     // still never rests, so it must go back to the pool or this leaks a
     // slot every time an out-of-window order arrives.
@@ -129,6 +145,9 @@ void OrderBook::add_order(Order* order) {
           order->qty -= execQuantity;
           topOrder->qty -= execQuantity;
           level.total_qty -= execQuantity;
+
+          // outbound_fills_.try_push(
+          // ExecutionEvent(topOrder->price, execQuantity, Side::Bid));
 
           if (topOrder->qty == 0) {  // i.e., it was the minimum
             Order* nextOrder = topOrder->next;
@@ -191,6 +210,11 @@ void OrderBook::add_order(Order* order) {
           order->qty -= execQuantity;
           topOrder->qty -= execQuantity;
           level.total_qty -= execQuantity;
+
+          // notify that a trade has been executed
+          // outbound_fills_.try_push(
+          // ExecutionEvent(topOrder->price, execQuantity, Side::Ask)
+          // );
 
           if (topOrder->qty == 0) {  // i.e., it was the minimum
             Order* nextOrder = topOrder->next;
@@ -258,7 +282,7 @@ void OrderBook::modify_order(uint64_t order_id, int64_t new_price,
     new_order->side = side;
 
     add_order(new_order);
-  } 
+  }
 }
 
 }  // namespace lob

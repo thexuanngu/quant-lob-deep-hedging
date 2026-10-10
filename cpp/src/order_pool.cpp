@@ -1,7 +1,6 @@
-#include <algorithm>
+#include "lob/order_pool.hpp"
 
-#include "lob/order_book.hpp"
-#include "lob/spsc_ring_buffer.hpp"
+#include <algorithm>
 
 namespace lob {
 OrderPool::OrderPool(std::size_t capacity) {

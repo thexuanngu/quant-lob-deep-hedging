@@ -1,25 +1,19 @@
 #pragma once
 
-#include "lob/order_book.hpp"
-#include "lob/spsc_ring_buffer.hpp"
 #include <thread>
 
-namespace lob {
-enum class Action { Add, Cancel, Modify };
+#include "lob/order_book.hpp"
+#include "lob/spsc_ring_buffer.hpp"
 
-struct OrderEvent {  // Interface between the buffer and the OrderPool
-  uint64_t order_id;
-  int64_t price;
-  uint64_t qty;
-  Side side;
-  Action action;  // Add, Cancel, Modify
-};
+namespace lob {
 
 class LOBEngine {
  public:
   LOBEngine(OrderBook& order_book, OrderPool& order_pool,
             SpscRingBuffer<OrderEvent, 1024>& ring_buffer)
-      : book_(order_book), order_pool_(order_pool), ring_buffer_(ring_buffer),
+      : book_(order_book),
+        order_pool_(order_pool),
+        ring_buffer_(ring_buffer),
         running_(false) {}
 
   void runEngine();

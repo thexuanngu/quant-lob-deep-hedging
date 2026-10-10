@@ -1,6 +1,8 @@
 #include <benchmark/benchmark.h>
 
 #include "lob/order_book.hpp"
+#include "lob/types.hpp"
+#include "lob/spsc_ring_buffer.hpp"
 
 // Measures pure non-crossing insertion cost. Cleanup is batched every 256
 // iterations rather than every single one: PauseTiming()/ResumeTiming() have
@@ -15,7 +17,8 @@ static void BM_OrderBookAddResting(benchmark::State& state) {
   constexpr int64_t kTickPriceOffset = 1;
   constexpr int kBatchSize = 256;
   lob::OrderPool pool(4096);
-  lob::OrderBook book(kNumPriceLevels, kTickSize, kTickPriceOffset, &pool);
+  lob::SpscRingBuffer<lob::ExecutionEvent, 4096> outbound_fills_;
+  lob::OrderBook book(kNumPriceLevels, kTickSize, kTickPriceOffset, &pool, &outbound_fills_);
   uint64_t next_id = 1;
   uint64_t batch_start = 1;
   int count_in_batch = 0;

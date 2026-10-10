@@ -1,5 +1,5 @@
-
 #include "lob/engine.hpp"
+// #include <immintrin.h>
 
 namespace lob {
 
@@ -7,7 +7,7 @@ void LOBEngine::runEngine() {
   while (running_.load(std::memory_order_acquire)) {
     auto event_opt = ring_buffer_.try_pop();
     if (!event_opt) {
-      std::this_thread::yield();  // Comment this out to immediately retry (will use entire CPU)
+      std::this_thread::yield();  // Comment this out to immediately retry -> TODO: Gemini wants me to swap this out for something else
       continue;
     }
 
