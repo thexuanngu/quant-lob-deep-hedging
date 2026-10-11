@@ -10,21 +10,23 @@ namespace lob {
 class LOBEngine {
  public:
   LOBEngine(OrderBook& order_book, OrderPool& order_pool,
-            SpscRingBuffer<OrderEvent, 1024>& ring_buffer)
-      : book_(order_book),
-        order_pool_(order_pool),
-        ring_buffer_(ring_buffer),
-        running_(false) {}
+            SpscRingBuffer<OrderEvent, 4096>& ring_buffer);
+  ~LOBEngine();  // calls stop(); a joinable std::thread destructing = terminate
 
+  LOBEngine(const LOBEngine&) = delete;
+  LOBEngine& operator=(const LOBEngine&) = delete;
+
+  void process(const OrderEvent& ev);  // shared by sync + threaded paths
   void runEngine();
   void start();
-  void stop();
+  void stop();  // contract: producer has already finished pushing
 
  private:
   OrderBook& book_;
   OrderPool& order_pool_;
-  SpscRingBuffer<OrderEvent, 1024>& ring_buffer_;
+  SpscRingBuffer<OrderEvent, 4096>& ring_buffer_;
   std::atomic<bool> running_;
+  alignas(kCacheLineSize) std::atomic<std::uint64_t> processed_{0};
   std::thread engine_thread_;
 };
 }  // namespace lob

@@ -11,7 +11,7 @@ namespace lob {
 class OrderBook {
  public:
   // OrderBook() = default;
-  OrderBook(int64_t num_price_levels, double tick_size,
+  OrderBook(int64_t num_price_levels,
             int64_t tick_price_offset, OrderPool* order_pool,
             SpscRingBuffer<ExecutionEvent, 4096>& outbound_fills);
 
@@ -35,7 +35,6 @@ class OrderBook {
   // at [0]: tick_price_offset -> at .back(): .size() * tick_price_offset
   std::vector<PriceLevel> asks_;
   std::vector<PriceLevel> bids_;
-  double tick_size_;           // TODO: Currently does nothing
   int64_t tick_price_offset_;  // idx relative to an offset
   // offset in 'integer' terms produces the correct index (ex. 10000)
 
@@ -52,6 +51,11 @@ class OrderBook {
 
   // Notifications for the decision layer
   SpscRingBuffer<ExecutionEvent, 4096>& outbound_fills_;
+
+  // Track the try_pushes
+  uint64_t dropped_fills_  = 0;
+  uint64_t pool_exhausted_ = 0;
+  uint64_t out_of_window   = 0;
 
   // Global O(1) lookup table for instant cancellations
   std::unordered_map<uint64_t, Order*>

@@ -7,6 +7,8 @@ namespace lob {
 
 // TESTING FUNCTIONS
 
+static constexpr int64_t kNoAsk = INT64_MAX;
+
 int64_t OrderBook::get_best_bid() { return (best_bid_ + tick_price_offset_); }
 int64_t OrderBook::get_best_ask() { return (best_ask_ + tick_price_offset_); }
 std::size_t OrderBook::get_all_resting_orders() { return order_map_.size(); }
@@ -44,12 +46,11 @@ std::vector<uint64_t> OrderBook::get_order_count_at_level(Side side,
 
 // CORE FUNCTIONALITY
 
-OrderBook::OrderBook(int64_t num_price_levels, double tick_size,
-                     int64_t tick_price_offset, OrderPool* order_pool,
+OrderBook::OrderBook(int64_t num_price_levels, int64_t tick_price_offset,
+                     OrderPool* order_pool,
                      SpscRingBuffer<ExecutionEvent, 4096>& outbound_fills)
     : asks_(num_price_levels),
       bids_(num_price_levels),
-      tick_size_(tick_size),
       tick_price_offset_(
           tick_price_offset),  // Be careful with setting this to 0
       order_pool_(order_pool),
@@ -86,16 +87,12 @@ void OrderBook::cancel_order(uint64_t order_id) {
   if (level.total_qty == 0) {
     int64_t temp_idx = indexed_price;
     if (order->side == Side::Bid && indexed_price == best_bid_) {
-      while (temp_idx > 0 && bids_[temp_idx].total_qty == 0)
-        temp_idx--;  // Keep reducing if the best_bid hasn't been found
-      best_bid_ = (has_bid(temp_idx)) ? temp_idx : -1;  // no bids in market (
-    } else if (order->side == Side::Ask &&
-               indexed_price == best_ask_) {  // Keep increasing if the best ask
-                                              // hasn't been found
-      while (temp_idx < static_cast<int64_t>(asks_.size()) &&
-             asks_[temp_idx].total_qty == 0)
-        temp_idx++;
-      best_ask_ = (has_ask(temp_idx)) ? temp_idx : INT64_MAX;
+      while (temp_idx >= 0 && bids_[temp_idx].total_qty == 0) temp_idx--;
+      best_bid_ = temp_idx;  // falls out as temp_idx == -1
+    } else if (order->side == Side::Ask && indexed_price == best_ask_) {
+      const auto n = static_cast<int64_t>(asks_.size());
+      while ((temp_idx < n) && (asks_[temp_idx].total_qty == 0)) temp_idx++;
+      best_ask_ = (temp_idx < n) ? temp_idx : INT64_MAX;
     }
   }
   order_map_.erase(it);
@@ -146,8 +143,14 @@ void OrderBook::add_order(Order* order) {
           topOrder->qty -= execQuantity;
           level.total_qty -= execQuantity;
 
-          // outbound_fills_.try_push(
-          // ExecutionEvent(topOrder->price, execQuantity, Side::Bid));
+          auto ev = ExecutionEvent();  // Worry about adding time later
+          ev.maker_id = topOrder->order_id;
+          ev.taker_id = order->order_id;
+          ev.price = topOrder->price;
+          ev.qty = execQuantity;
+          ev.aggressor = Side::Bid;
+
+          outbound_fills_.try_push(ev);
 
           if (topOrder->qty == 0) {  // i.e., it was the minimum
             Order* nextOrder = topOrder->next;
@@ -212,9 +215,14 @@ void OrderBook::add_order(Order* order) {
           level.total_qty -= execQuantity;
 
           // notify that a trade has been executed
-          // outbound_fills_.try_push(
-          // ExecutionEvent(topOrder->price, execQuantity, Side::Ask)
-          // );
+          auto ev = ExecutionEvent();  // Worry about adding time later
+          ev.maker_id = topOrder->order_id;
+          ev.taker_id = order->order_id;
+          ev.price = topOrder->price;
+          ev.qty = execQuantity;
+          ev.aggressor = Side::Ask;
+
+          outbound_fills_.try_push(ev);
 
           if (topOrder->qty == 0) {  // i.e., it was the minimum
             Order* nextOrder = topOrder->next;
@@ -269,17 +277,22 @@ void OrderBook::modify_order(uint64_t order_id, int64_t new_price,
 
   // In a real exchange, reducing quantity maintains priority (no cancel/re-add
   // needed). For now, to keep it simple and enforce queue penalty for changes:
-  Side side = existing_order->side;
 
+  if (new_qty == 0) {  // modifying order w/ 0 qty = cancel
+    cancel_order(order_id);
+    return;
+  }
+
+  // Retrieve a fresh pointer first, cancel existing, populate, and add
+  Order* new_order = order_pool_->allocate();
   cancel_order(order_id);
 
-  // Retrieve a fresh pointer, populate it, and add it.
-  Order* new_order = order_pool_->allocate();
   if (new_order) {
     new_order->order_id = order_id;
     new_order->price = new_price;
     new_order->qty = new_qty;
-    new_order->side = side;
+    new_order->side = existing_order->side;
+    ;
 
     add_order(new_order);
   }
