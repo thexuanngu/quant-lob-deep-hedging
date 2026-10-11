@@ -4,7 +4,7 @@
 namespace lob {
 
 LOBEngine::LOBEngine(OrderBook& order_book, OrderPool& order_pool,
-                     SpscRingBuffer<OrderEvent, 4096>& ring_buffer)
+                     InputBuffer& ring_buffer)
     : book_(order_book),
       order_pool_(order_pool),
       ring_buffer_(ring_buffer),
@@ -13,6 +13,7 @@ LOBEngine::LOBEngine(OrderBook& order_book, OrderPool& order_pool,
 LOBEngine::~LOBEngine() { stop(); }
 
 void LOBEngine::process(const OrderEvent& ev) {
+  book_.set_time(ev.ts_ns);
   // Route the event
   switch (ev.action) {
     case Action::Add: {

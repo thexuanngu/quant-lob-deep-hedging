@@ -7,18 +7,18 @@ namespace lob {
 
 // TESTING FUNCTIONS
 
-static constexpr int64_t kNoAsk = INT64_MAX;
+std::optional<int64_t> OrderBook::best_bid() const noexcept {
+  return best_bid_ == kNoBid
+             ? std::nullopt
+             : std::optional<int64_t>{best_bid_ + tick_price_offset_};
+}
+std::optional<int64_t> OrderBook::best_ask() const noexcept {
+  return best_ask_ == kNoAsk
+             ? std::nullopt
+             : std::optional<int64_t>{best_ask_ + tick_price_offset_};
+}
 
-int64_t OrderBook::get_best_bid() { return (best_bid_ + tick_price_offset_); }
-int64_t OrderBook::get_best_ask() { return (best_ask_ + tick_price_offset_); }
 std::size_t OrderBook::get_all_resting_orders() { return order_map_.size(); }
-
-bool OrderBook::has_bid(int64_t indexed_price) {
-  return bids_[indexed_price].total_qty != 0;
-}
-bool OrderBook::has_ask(int64_t indexed_price) {
-  return asks_[indexed_price].total_qty != 0;
-}
 
 uint64_t OrderBook::get_total_quantity_at_price(Side side, int64_t price) {
   return (side == Side::Bid) ? bids_[price - tick_price_offset_].total_qty
@@ -47,8 +47,7 @@ std::vector<uint64_t> OrderBook::get_order_count_at_level(Side side,
 // CORE FUNCTIONALITY
 
 OrderBook::OrderBook(int64_t num_price_levels, int64_t tick_price_offset,
-                     OrderPool* order_pool,
-                     SpscRingBuffer<ExecutionEvent, 4096>& outbound_fills)
+                     OrderPool* order_pool, OutputBuffer& outbound_fills)
     : asks_(num_price_levels),
       bids_(num_price_levels),
       tick_price_offset_(
@@ -92,7 +91,7 @@ void OrderBook::cancel_order(uint64_t order_id) {
     } else if (order->side == Side::Ask && indexed_price == best_ask_) {
       const auto n = static_cast<int64_t>(asks_.size());
       while ((temp_idx < n) && (asks_[temp_idx].total_qty == 0)) temp_idx++;
-      best_ask_ = (temp_idx < n) ? temp_idx : INT64_MAX;
+      best_ask_ = (temp_idx < n) ? temp_idx : kNoAsk;
     }
   }
   order_map_.erase(it);
@@ -107,14 +106,12 @@ void OrderBook::cancel_order(uint64_t order_id) {
     a. Order consumes multiple levels of liquidity
     b. Order doesn't entirely consume the head liquidity
    */
-// TODO(Me): Add in a 'Fill' notification for when the model gets filled
 void OrderBook::add_order(Order* order) {
   // Check if the order is within the bounds of the LOB
   if (order->price < tick_price_offset_ ||
       order->price >= tick_price_offset_ + static_cast<int64_t>(asks_.size())) {
-    // Silently reject orders outside the acceptable window - but the order
-    // still never rests, so it must go back to the pool or this leaks a
-    // slot every time an out-of-window order arrives.
+    // Silently reject orders outside the acceptable window
+    out_of_window_++;  // TODO(Me): Replace with a getter?
     order_pool_->deallocate(order);
     return;
   }
@@ -143,14 +140,14 @@ void OrderBook::add_order(Order* order) {
           topOrder->qty -= execQuantity;
           level.total_qty -= execQuantity;
 
-          auto ev = ExecutionEvent();  // Worry about adding time later
-          ev.maker_id = topOrder->order_id;
-          ev.taker_id = order->order_id;
-          ev.price = topOrder->price;
-          ev.qty = execQuantity;
-          ev.aggressor = Side::Bid;
-
-          outbound_fills_.try_push(ev);
+          const ExecutionEvent ev{
+              .ts_ns = now_ns_,
+              .maker_id = topOrder->order_id,
+              .taker_id = order->order_id,
+              .price = topOrder->price,
+              .qty = execQuantity,
+              .aggressor = Side::Bid};  // Ask in the other branch
+          if (!outbound_fills_.try_push(ev)) ++dropped_fills_;
 
           if (topOrder->qty == 0) {  // i.e., it was the minimum
             Order* nextOrder = topOrder->next;
@@ -215,14 +212,14 @@ void OrderBook::add_order(Order* order) {
           level.total_qty -= execQuantity;
 
           // notify that a trade has been executed
-          auto ev = ExecutionEvent();  // Worry about adding time later
-          ev.maker_id = topOrder->order_id;
-          ev.taker_id = order->order_id;
-          ev.price = topOrder->price;
-          ev.qty = execQuantity;
-          ev.aggressor = Side::Ask;
-
-          outbound_fills_.try_push(ev);
+          const ExecutionEvent ev{
+              .ts_ns = now_ns_,
+              .maker_id = topOrder->order_id,
+              .taker_id = order->order_id,
+              .price = topOrder->price,
+              .qty = execQuantity,
+              .aggressor = Side::Ask};  // Ask in the other branch
+          if (!outbound_fills_.try_push(ev)) ++dropped_fills_;
 
           if (topOrder->qty == 0) {  // i.e., it was the minimum
             Order* nextOrder = topOrder->next;
@@ -268,34 +265,33 @@ void OrderBook::add_order(Order* order) {
   }
 }
 
-void OrderBook::modify_order(uint64_t order_id, int64_t new_price,
-                             uint64_t new_qty) {
-  auto it = order_map_.find(order_id);
-  if (it == order_map_.end()) return;
+void OrderBook::modify_order(uint64_t id, int64_t new_price, uint64_t new_qty) {
 
-  Order* existing_order = it->second;
+  auto it = order_map_.find(id);
+  if (it == order_map_.end()) return;
 
   // In a real exchange, reducing quantity maintains priority (no cancel/re-add
   // needed). For now, to keep it simple and enforce queue penalty for changes:
 
-  if (new_qty == 0) {  // modifying order w/ 0 qty = cancel
-    cancel_order(order_id);
+  // modifying order w/ 0 qty = cancel
+  if (new_qty == 0) {
+    cancel_order(id);
+    return;
+  }
+
+    if (new_price < tick_price_offset_ ||
+      new_price >= tick_price_offset_ + static_cast<int64_t>(asks_.size())) {
+    // Silently reject orders outside the acceptable window
+    out_of_window_++;
     return;
   }
 
   // Retrieve a fresh pointer first, cancel existing, populate, and add
-  Order* new_order = order_pool_->allocate();
-  cancel_order(order_id);
-
-  if (new_order) {
-    new_order->order_id = order_id;
-    new_order->price = new_price;
-    new_order->qty = new_qty;
-    new_order->side = existing_order->side;
-    ;
-
-    add_order(new_order);
-  }
+  const Side side = it->second->side;
+  Order* fresh = order_pool_->allocate(id, new_price, new_qty, side);
+  if (!fresh) return;
+  cancel_order(id);
+  add_order(fresh);
 }
 
 }  // namespace lob

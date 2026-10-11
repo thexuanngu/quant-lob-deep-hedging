@@ -1,5 +1,7 @@
 #pragma once
 #include <cstdint>
+#include <type_traits>
+
 
 namespace lob {
 enum class Side : std::uint8_t { Bid, Ask };
@@ -42,11 +44,11 @@ struct ExecutionEvent {  // aggregate: no ctor, so the ring buffer's `T
   std::uint64_t ts_ns;
   std::uint64_t maker_id;  // you need to know which of YOUR orders filled
   std::uint64_t taker_id;
-  std::int64_t price;
+  std::int64_t price;  // maker's price
   std::uint64_t qty;
-  Side aggressor;
+  Side aggressor;  // taker's side
 };
 
-// static_assert(std::is_trivially_copyable_v<OrderEvent>);
-// static_assert(std::is_trivially_copyable_v<ExecutionEvent>);
+static_assert(std::is_trivially_copyable_v<OrderEvent>);
+static_assert(std::is_trivially_copyable_v<ExecutionEvent>);
 }  // namespace lob

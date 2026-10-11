@@ -6,6 +6,17 @@
 cmake --preset release      # or debug / asan / tsan
 cmake --build --preset release -j$(nproc)
 ctest --preset release --output-on-failure
+cmake --build --preset debug --target unit_tests -j$(sysctl -n hw.ncpu)  # MacOS
+cmake --build --preset asan --target unit_tests -j$(sysctl -n hw.ncpu)  
+cmake --build --preset tsan --target unit_tests -j$(sysctl -n hw.ncpu)  
+```
+
+### Build & Test
+```bash
+# or debug / asan / tsan
+cmake --build --preset asan --target unit_tests -j$(sysctl -n hw.ncpu) && ctest --preset asan --output-on-failure
+cmake --build --preset tsan --target unit_tests -j$(sysctl -n hw.ncpu) && ctest --preset tsan --output-on-failure
+cmake --build --preset debug --target unit_tests -j$(sysctl -n hw.ncpu) && ctest --preset debug --output-on-failure
 ```
 
 Run under sanitizers before you trust any change to `spsc_ring_buffer.hpp`

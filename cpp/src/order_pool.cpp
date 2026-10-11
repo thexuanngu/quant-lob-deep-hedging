@@ -3,6 +3,7 @@
 #include <algorithm>
 
 namespace lob {
+
 OrderPool::OrderPool(std::size_t capacity) {
   pool_.resize(capacity);
   free_list_.reserve(capacity);
@@ -13,8 +14,10 @@ OrderPool::OrderPool(std::size_t capacity) {
 }
 
 Order* OrderPool::allocate() {
-  if (free_list_.empty())
+  if (free_list_.empty()) {
+    pool_exhausted_++;
     return nullptr;  // In production, handle capacity exhaustion
+  }
   Order* order = free_list_.back();
   free_list_.pop_back();
   return order;
@@ -22,8 +25,10 @@ Order* OrderPool::allocate() {
 
 Order* OrderPool::allocate(uint64_t order_id, int64_t price, uint64_t qty,
                            Side side) {
-  if (free_list_.empty())
+  if (free_list_.empty()) {
+    pool_exhausted_++;
     return nullptr;  // In production, handle capacity exhaustion
+  }
   Order* order = free_list_.back();
   free_list_.pop_back();
   order->order_id = order_id;

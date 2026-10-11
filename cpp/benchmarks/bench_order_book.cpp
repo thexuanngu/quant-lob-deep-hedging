@@ -1,8 +1,8 @@
 #include <benchmark/benchmark.h>
 
 #include "lob/order_book.hpp"
+#include "lob/queues.hpp"
 #include "lob/types.hpp"
-#include "lob/spsc_ring_buffer.hpp"
 
 // Measures pure non-crossing insertion cost. Cleanup is batched every 256
 // iterations rather than every single one: PauseTiming()/ResumeTiming() have
@@ -11,14 +11,14 @@
 // reported cost - confirmed by comparing against a per-iteration-cleanup
 // version, which reported ~2x higher and reversed the expected ordering
 // relative to BM_OrderBookMatching below.
+
 static void BM_OrderBookAddResting(benchmark::State& state) {
   constexpr int64_t kNumPriceLevels = 1000;
-  constexpr double kTickSize = 5.0;
   constexpr int64_t kTickPriceOffset = 1;
   constexpr int kBatchSize = 256;
   lob::OrderPool pool(4096);
-  lob::SpscRingBuffer<lob::ExecutionEvent, 4096> outbound_fills_;
-  lob::OrderBook book(kNumPriceLevels, kTickSize, kTickPriceOffset, &pool, &outbound_fills_);
+  lob::OutputBuffer fills;
+  lob::OrderBook book(kNumPriceLevels, kTickPriceOffset, &pool, fills);
   uint64_t next_id = 1;
   uint64_t batch_start = 1;
   int count_in_batch = 0;
@@ -51,7 +51,6 @@ BENCHMARK(BM_OrderBookAddResting);
 // instead of monotonically draining.
 static void BM_OrderBookMatching(benchmark::State& state) {
   constexpr int64_t kNumPriceLevels = 1000;
-  constexpr double kTickSize = 5.0;
   constexpr int64_t kTickPriceOffset = 1;
   constexpr int64_t kPrice = 100;
   constexpr uint64_t kRestingQty = 10;
@@ -59,13 +58,16 @@ static void BM_OrderBookMatching(benchmark::State& state) {
   constexpr uint64_t kMinDepth = 500;
 
   lob::OrderPool pool(4096);
-  lob::OrderBook book(kNumPriceLevels, kTickSize, kTickPriceOffset, &pool);
+  lob::OutputBuffer fills;
+  lob::OrderBook book(kNumPriceLevels, kTickPriceOffset, &pool, fills);
   uint64_t next_id = 1;
 
   for (auto _ : state) {
     state.PauseTiming();
     while (book.get_total_quantity_at_price(lob::Side::Ask, kPrice) <
            kMinDepth) {
+      while (fills.try_pop()) {
+      }
       lob::Order* resting =
           pool.allocate(next_id++, kPrice, kRestingQty, lob::Side::Ask);
       book.add_order(resting);

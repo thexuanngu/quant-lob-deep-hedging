@@ -1,19 +1,27 @@
 #pragma once
+#include <assert.h>
+
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
+#include <optional>
 
-#include "lob/spsc_ring_buffer.hpp"
+#include "lob/queues.hpp"
 #include "lob/order_pool.hpp"
 
 namespace lob {
 
+inline constexpr int64_t kNoBid = -1;
+inline constexpr int64_t kNoAsk = INT64_MAX;
+
 class OrderBook {
  public:
   // OrderBook() = default;
-  OrderBook(int64_t num_price_levels,
-            int64_t tick_price_offset, OrderPool* order_pool,
-            SpscRingBuffer<ExecutionEvent, 4096>& outbound_fills);
+  OrderBook(int64_t num_price_levels, int64_t tick_price_offset,
+            OrderPool* order_pool, OutputBuffer& outbound_fills);
+
+  OrderBook(const OrderBook&) = delete;
+  OrderBook& operator=(const OrderBook&) = delete;
 
   // The method you will implement in order_book.cpp
   void add_order(Order* order);
@@ -21,14 +29,20 @@ class OrderBook {
   void modify_order(uint64_t order_id, int64_t new_price, uint64_t new_qty);
   // void cancel_price_level(int64_t price, Side side); // TODO
 
-  int64_t get_best_bid();
-  int64_t get_best_ask();
-  bool has_bid(int64_t indexed_price);
-  bool has_ask(int64_t indexed_price);
+  std::optional<int64_t> best_bid() const noexcept;
+  std::optional<int64_t> best_ask() const noexcept;
+  uint64_t dropped_fills() const noexcept { return dropped_fills_; }
+  uint64_t out_of_window() const noexcept { return out_of_window_; }
+
   uint64_t get_total_quantity_at_price(Side side, int64_t price);
   std::vector<uint64_t> get_order_count_at_level(Side side, int64_t price);
   std::size_t get_all_resting_orders();
   PriceLevel get_price_level(Side side, int64_t price);
+
+  void set_time(std::uint64_t ts_ns) noexcept {
+    assert(ts_ns >= now_ns_);
+    now_ns_ = ts_ns;
+  }
 
  private:
   // Contiguous memory for price levels (fast cache access)
@@ -38,24 +52,21 @@ class OrderBook {
   int64_t tick_price_offset_;  // idx relative to an offset
   // offset in 'integer' terms produces the correct index (ex. 10000)
 
-  // TODO: build in a safety check for orders beyond the range
-
   // Memory order
   OrderPool* order_pool_;
-  // TODO: Preallocate these ^vector memories
 
   // Explicitly track the best bids and ask in the LOB
   // OFFSET ADJUSTED
-  int64_t best_bid_ = -1;  // 0 index could be a valid price (because of tick_price offset)
-  int64_t best_ask_ = INT64_MAX;
+  int64_t best_bid_ = kNoBid;  // idx 0 could be valid (bc of offset)
+  int64_t best_ask_ = kNoAsk;
 
   // Notifications for the decision layer
-  SpscRingBuffer<ExecutionEvent, 4096>& outbound_fills_;
+  OutputBuffer& outbound_fills_;
 
   // Track the try_pushes
-  uint64_t dropped_fills_  = 0;
-  uint64_t pool_exhausted_ = 0;
-  uint64_t out_of_window   = 0;
+  uint64_t dropped_fills_ = 0;
+  uint64_t out_of_window_ = 0;
+  uint64_t now_ns_ = 0;
 
   // Global O(1) lookup table for instant cancellations
   std::unordered_map<uint64_t, Order*>
