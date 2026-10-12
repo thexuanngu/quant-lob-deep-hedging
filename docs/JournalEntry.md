@@ -75,3 +75,16 @@ Important to evaluate the translation logic: Event -> Pool -> Book -> Action Rou
     
 ## 24/09/2026
 - I want to do the currying function thing and implement a logger. I realize that I can't REALLY be using strings, so instead it'll be numbers or ENUMs, and there'll be a separate 'outside' 'dictionary' to translate what the log messages are saying
+
+## 12/10/2026
+While the commit messages also provide some useful context, I also should continue documenting the changes and modifications to the LOB. As a high level summary of the things I've accomplished so far:
+- Created various .hpp files, with a clear order of types <- pool <- book <- engine <- feed
+- Implemented the `OrderBook`'s `add`, `cancel`, and `modify` methods
+    - For add order, added in an `outbound_fills_` feature to notify the eventual deep hedging model about the outcomes of trades
+- Built a stronger intuition behind what's the consumer and producer threads
+- Built out the logic for the `LOBEngine` to actually recieve orders
+- Crafted the tests for the `OrderBook`, and drafted the benchmark.
+
+Today, the goal is to tie up the loose ends with the testing and the benchmarks, and move my efforts onto building and plugging in a simulated feed. There's also several other tasks to complete (courtesy of Claude helping me understand). I am making sure that ultimately it's my hands that are typing the code, understanding the reasoning behind the code.
+
+I've also included the Claude summary document of this 'milestone' I've been working on

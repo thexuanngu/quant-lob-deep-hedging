@@ -22,6 +22,7 @@ class OrderPool {
   void deallocate(Order* order);
 
   uint64_t exhausted() const noexcept { return pool_exhausted_; }
+  uint64_t free_count() const noexcept { return free_list_.size();}
 
  private:
   std::vector<Order> pool_;
