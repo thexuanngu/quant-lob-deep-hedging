@@ -1,6 +1,5 @@
 #include "lob/order_book.hpp"
 
-#include <string>  // for testing purposes
 #include <algorithm>
 #include <vector>
 

@@ -5,6 +5,7 @@
 #include <optional>
 #include <unordered_map>
 #include <vector>
+#include <string>  // for testing purposes
 
 #include "lob/order_pool.hpp"
 #include "lob/queues.hpp"
