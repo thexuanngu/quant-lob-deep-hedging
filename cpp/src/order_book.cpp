@@ -1,5 +1,6 @@
 #include "lob/order_book.hpp"
 
+#include <string>  // for testing purposes
 #include <algorithm>
 #include <vector>
 
@@ -42,6 +43,59 @@ std::vector<uint64_t> OrderBook::get_order_count_at_level(Side side,
     curHead = curHead->next;
   }
   return res;
+}
+
+std::string OrderBook::check_invariants() const {  // end of every test -> check invariants
+  const auto n = static_cast<int64_t>(asks_.size());
+  const std::size_t guard = order_pool_->capacity();  // a longer list must be corrupt
+  std::size_t reachable = 0;
+  int64_t best_bid_seen = kNoBid;
+  int64_t best_ask_seen = kNoAsk;
+
+  for (Side side : {Side::Bid, Side::Ask}) {
+    const auto& levels = (side == Side::Bid) ? bids_ : asks_;
+    const std::string name = (side == Side::Bid) ? "bid" : "ask";
+    for (int64_t idx = 0; idx < n; ++idx) {
+      const PriceLevel& lv = levels[idx];
+      auto where = [&] { return name + " level " + std::to_string(idx) + ": "; };
+
+      if ((lv.head == nullptr) != (lv.tail == nullptr)) return where() + "head/tail null-ness differs";
+
+      uint64_t sum = 0;
+      const Order* prev = nullptr;
+      std::size_t steps = 0;
+
+      // Walk the orders in the level
+      for (const Order* o = lv.head; o != nullptr; prev = o, o = o->next) {
+        if (++steps > guard) return where() + "list longer than the pool (cycle?)";
+        if (o->prev != prev) return where() + "prev link broken";
+        if (o->side != side) return where() + "order on the wrong side";
+        if (o->price - tick_price_offset_ != idx) return where() + "order price does not match its level";
+        if (o->qty == 0) return where() + "resting order with zero qty";  // no resting orders should have 0 qty
+        auto it = order_map_.find(o->order_id);
+        if (it == order_map_.end() || it->second != o) return where() + "order missing from order_map_";
+        sum += o->qty;
+        ++reachable;
+      }
+
+      // after walking orders
+      if (prev != lv.tail) return where() + "tail is not the last node";
+      if (sum != lv.total_qty) return where() + "total_qty != sum of order qtys";
+      if (lv.head != nullptr) {
+        if (side == Side::Bid) best_bid_seen = idx;               // last non-empty bid = highest
+        else if (best_ask_seen == kNoAsk) best_ask_seen = idx;    // first non-empty ask = lowest
+      }
+    }
+  }
+
+  // after walking all the levels
+  if (reachable != order_map_.size()) return "order_map_ size != orders reachable from the levels";
+  if (best_bid_seen != best_bid_) return "best_bid_ is stale";
+  if (best_ask_seen != best_ask_) return "best_ask_ is stale";
+  if (best_bid_ != kNoBid && best_ask_ != kNoAsk && best_bid_ >= best_ask_) return "book is crossed";
+  if (order_pool_->free_count() + reachable != order_pool_->capacity())
+    return "pool slots leaked or double-freed (free + resting != capacity)";
+  return {};
 }
 
 // CORE FUNCTIONALITY

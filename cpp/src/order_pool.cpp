@@ -1,6 +1,6 @@
 #include "lob/order_pool.hpp"
 
-#include <algorithm>
+#include <cassert>
 
 namespace lob {
 
@@ -39,6 +39,7 @@ Order* OrderPool::allocate(uint64_t order_id, int64_t price, uint64_t qty,
 }
 
 void OrderPool::deallocate(Order* order) {
+  assert(free_list_.size() < pool_.size() && "double free: more free slots than the pool owns");
   // Reset structural pointers before returning to pool
   order->prev = nullptr;
   order->next = nullptr;

@@ -14,18 +14,12 @@ struct BookFixture {
   bool expect_clean = true;   // tests that provoke drops on purpose set this to false
   explicit BookFixture(int64_t offset = 1) : book(kLevels, offset, &pool, fills) {}
   ~BookFixture() {            // runs at the end of EVERY test that uses the fixture
+    CHECK(book.check_invariants() == "");
     if (expect_clean) {
       CHECK(book.dropped_fills() == 0);
       CHECK(book.out_of_window() == 0);
       CHECK(pool.exhausted() == 0);
     }
-  }
-  bool check_invariants() {
-    return (
-      book.best_bid() < book.best_ask() &&
-      
-
-    );
   }
 };
 
@@ -353,9 +347,6 @@ TEST_CASE_METHOD(BookFixture, "Test the modification of an ASK in place",
   REQUIRE(priceLevel.tail->order_id == 1);
   REQUIRE(priceLevel.head->next->order_id == 1);
   REQUIRE(priceLevel.head->next->prev->order_id == 4);
-  REQUIRE(book.dropped_fills() == 0);
-  REQUIRE(book.out_of_window() == 0);
-  REQUIRE(pool.exhausted() == 0);
 }
 
 TEST_CASE_METHOD(BookFixture, "Cancel only bid and ask", "[orderbook]") {
@@ -451,4 +442,12 @@ TEST_CASE_METHOD(BookFixture, "fills: ask aggressor sweeps two levels in price-t
   for (const auto& g : got) { CHECK(g.taker_id == 9); CHECK(g.aggressor == Side::Ask); total += g.qty; }
   CHECK(total == 12);                                     // quantity conserved
   REQUIRE(book.get_total_quantity_at_price(Side::Bid, 99) == 3);
+}
+
+TEST_CASE_METHOD(BookFixture, "check_invariants detects a leaked pool slot", "[invariants]") {
+  book.add_order(pool.allocate(1, 100, 10, Side::Bid));
+  REQUIRE(book.check_invariants() == "");
+  Order* leaked = pool.allocate(2, 100, 10, Side::Bid);  // allocated, never added
+  REQUIRE(book.check_invariants() != "");
+  pool.deallocate(leaked);                               // repair so the end-of-test check passes
 }

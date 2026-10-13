@@ -2,12 +2,12 @@
 #include <assert.h>
 
 #include <cstdint>
+#include <optional>
 #include <unordered_map>
 #include <vector>
-#include <optional>
 
-#include "lob/queues.hpp"
 #include "lob/order_pool.hpp"
+#include "lob/queues.hpp"
 
 namespace lob {
 
@@ -27,8 +27,12 @@ class OrderBook {
   void add_order(Order* order);
   void cancel_order(uint64_t order_id);
   void modify_order(uint64_t order_id, int64_t new_price, uint64_t new_qty);
-  // void cancel_price_level(int64_t price, Side side); // TODO
+  void set_time(std::uint64_t ts_ns) noexcept {
+    assert(ts_ns >= now_ns_);
+    now_ns_ = ts_ns;
+  }
 
+  // Testing functionality
   std::optional<int64_t> best_bid() const noexcept;
   std::optional<int64_t> best_ask() const noexcept;
   uint64_t dropped_fills() const noexcept { return dropped_fills_; }
@@ -38,11 +42,7 @@ class OrderBook {
   std::vector<uint64_t> get_order_count_at_level(Side side, int64_t price);
   std::size_t get_all_resting_orders();
   PriceLevel get_price_level(Side side, int64_t price);
-
-  void set_time(std::uint64_t ts_ns) noexcept {
-    assert(ts_ns >= now_ns_);
-    now_ns_ = ts_ns;
-  }
+  std::string check_invariants() const;
 
  private:
   // Contiguous memory for price levels (fast cache access)

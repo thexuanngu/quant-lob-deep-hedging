@@ -23,6 +23,7 @@ class OrderPool {
 
   uint64_t exhausted() const noexcept { return pool_exhausted_; }
   uint64_t free_count() const noexcept { return free_list_.size();}
+  uint64_t capacity() const noexcept { return pool_.size();}
 
  private:
   std::vector<Order> pool_;

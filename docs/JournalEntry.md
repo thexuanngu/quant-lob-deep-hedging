@@ -87,4 +87,21 @@ While the commit messages also provide some useful context, I also should contin
 
 Today, the goal is to tie up the loose ends with the testing and the benchmarks, and move my efforts onto building and plugging in a simulated feed. There's also several other tasks to complete (courtesy of Claude helping me understand). I am making sure that ultimately it's my hands that are typing the code, understanding the reasoning behind the code.
 
-I've also included the Claude summary document of this 'milestone' I've been working on
+I've also included the Claude summary document of this 'milestone' I've been working on.
+
+## 13/10/2026
+- Added another test accessor in `OrderPool` to see the capacity of the list
+- Moved the `check_invariants()` function into `OrderBook` and understood its (and the tests') purpose: `check_invariants()` cataches mechanical mishaps, the tests catch inconsistent behaviour.
+    - As the function will check, the invariants to check are things that should ALWAYS be true (i.e., the free list of pool + orders on book = capacity of pool)
+
+I now have Claude's verification (with the tests and other modifications) that the LOB is structurally sound. WOOHOO! Now time to wrap up the end of milestone2 and actually build the feed that 'feeds' into the LOB (through the engine)
+
+Files modified:
+```git
+        modified:   cpp/include/lob/order_book.hpp
+        modified:   cpp/include/lob/order_pool.hpp
+        modified:   cpp/src/order_book.cpp
+        modified:   cpp/src/order_pool.cpp
+        modified:   cpp/tests/test_order_book.cpp
+        modified:   docs/JournalEntry.md
+```
