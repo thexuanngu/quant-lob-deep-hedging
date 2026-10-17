@@ -110,3 +110,6 @@ Files modified:
 Not quite ready to make another commit / push because the parameters, and how the `SyntheticFeed` should be designed is slowly coming together in my mind. There have been several times in this one coding session where I've been tempted to just half-bake an attempt then get Claude to review it, but I've just connected the dots in my head on (1) how thic class operates and (2) how to get it to operate, I am happy to spend a little bit more time hashing out the finer details of this class. 
 
 In particular, the random seed I have `mt19937` is dictating everything, but now I can clearly understand what it should be able to control!
+
+## 
+Drafted the `SyntheticFeedParams` class as I realize that's what's going to give me the necessary test configurability. Additionally, I started more work on implementing the `next()` method.
