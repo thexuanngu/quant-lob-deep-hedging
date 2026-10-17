@@ -111,5 +111,8 @@ Not quite ready to make another commit / push because the parameters, and how th
 
 In particular, the random seed I have `mt19937` is dictating everything, but now I can clearly understand what it should be able to control!
 
-## 
+## 16/10/2026
 Drafted the `SyntheticFeedParams` class as I realize that's what's going to give me the necessary test configurability. Additionally, I started more work on implementing the `next()` method.
+
+## 17/10/2026
+Started fleshing out more of the next() method, with the side generated first then the action. Looking back, I probably need to generate the action first, and I'll probably need helper functions to clearly distinguish my logic for the other steps. Tomorrow, I shall spend time mapping out what the method will do before I code it up. (At the very end, after I do some debugging and testing, should I then talk to Claude).
