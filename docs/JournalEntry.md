@@ -116,3 +116,6 @@ Drafted the `SyntheticFeedParams` class as I realize that's what's going to give
 
 ## 17/10/2026
 Started fleshing out more of the next() method, with the side generated first then the action. Looking back, I probably need to generate the action first, and I'll probably need helper functions to clearly distinguish my logic for the other steps. Tomorrow, I shall spend time mapping out what the method will do before I code it up. (At the very end, after I do some debugging and testing, should I then talk to Claude).
+
+## 19/10/2026
+I gave it to Claude to review, and there were just some misunderstandings regarding constructors. I have managed to make some more of those changes Claude suggested, in particular about cleaning up some of the notation and making sure my private helpers remain private. However, it is in a better state then from where I last left off.
