@@ -119,3 +119,6 @@ Started fleshing out more of the next() method, with the side generated first th
 
 ## 19/10/2026
 I gave it to Claude to review, and there were just some misunderstandings regarding constructors. I have managed to make some more of those changes Claude suggested, in particular about cleaning up some of the notation and making sure my private helpers remain private. However, it is in a better state then from where I last left off.
+
+## 20/10/2026
+Today, I cleaned up some more of the code and adjusted the `generate_add()` and `generate_modify()` methods to return `OrderEvent`s with `order_id=-1` to indicate it was an OrderEvent with a bad price, which would then call the method again with hopes of improving the price.
