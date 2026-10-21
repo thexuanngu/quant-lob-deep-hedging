@@ -45,6 +45,8 @@ class OrderBook {
   PriceLevel get_price_level(Side side, int64_t price);
   std::string check_invariants() const;
 
+  std::uint64_t state_hash() const;  // similar to check_invariants for the SyntheticFeed
+
  private:
   // Contiguous memory for price levels (fast cache access)
   // at [0]: tick_price_offset -> at .back(): .size() * tick_price_offset

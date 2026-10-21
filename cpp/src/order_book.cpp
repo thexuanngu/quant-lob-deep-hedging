@@ -332,8 +332,8 @@ void OrderBook::modify_order(uint64_t id, int64_t new_price, uint64_t new_qty) {
     return;
   }
 
-    if (new_price < tick_price_offset_ ||
-      new_price >= tick_price_offset_ + static_cast<int64_t>(asks_.size())) {
+  if (new_price < tick_price_offset_ ||
+    new_price >= tick_price_offset_ + static_cast<int64_t>(asks_.size())) {
     // Silently reject orders outside the acceptable window
     out_of_window_++;
     return;

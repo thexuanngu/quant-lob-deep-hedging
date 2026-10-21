@@ -7,4 +7,4 @@ add_executable(unit_tests
 target_link_libraries(unit_tests PRIVATE lob_core Catch2::Catch2WithMain)
 include(CTest)
 include(Catch)
-catch_discover_tests(unit_tests)
+catch_discover_tests(unit_tests PROPERTIES TIMEOUT 30)
